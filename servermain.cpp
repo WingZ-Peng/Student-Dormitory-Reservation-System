@@ -3,6 +3,11 @@
 using namespace std;
 
 const int PORT = 24778;
+const int MAX_CLIENTS = 3;
+
+int activeClients = 0;
+mutex mtx; // Mutex for thread safety
+int serverSocket;
 
 // Function to split a string by a delimiter
 vector<string> split(const string& s, char delimiter) {
@@ -131,7 +136,7 @@ int main() {
     unordered_map<int, unordered_set<string>> campusServerID = loadDepartmentData("list.txt");
 
     // Create and bind the socket
-    int serverSocket = createSocket(PORT);
+    serverSocket = createSocket(PORT);
     if (serverSocket == -1) return 1;
 
     // Listening for connections
@@ -153,25 +158,35 @@ int main() {
             continue;
         }
 
-        pid_t pid = fork(); // create a new process
-        if (pid < 0){
-            cerr << "Fork failed\n";
-            close(clientSocket);
-            continue;
-        } else if (pid == 0){
-            // cliend process
-            /* the child process inherits copies of all file descriptors from the parent, 
-               including the serverSocket. If the child process continues to keep the serverSocket open, 
-               it will hold a reference to it, which may lead to unnecessary resource consumption.
-            */
-           close(serverSocket);
-           handleClient(clientSocket, campusServerID);
-           exit(0);
+        // Lock the mutex to modify the active client count
+        mtx.lock();
+        if (activeClients < MAX_CLIENTS) {
+            ++activeClients;
+            cout << "Client connected. Active clients: " << activeClients << endl;
+
+            pid_t pid = fork(); // create a new process
+            if (pid < 0){
+                cerr << "Fork failed\n";
+                close(clientSocket);
+                mtx.unlock();
+                continue;
+            } else if (pid == 0){
+                // cliend process
+                /* the child process inherits copies of all file descriptors from the parent, 
+                including the serverSocket. If the child process continues to keep the serverSocket open, 
+                it will hold a reference to it, which may lead to unnecessary resource consumption.
+                */
+            close(serverSocket);
+            handleClient(clientSocket, campusServerID);
+            exit(0);
+            } else{
+                close(clientSocket);
+            }
         } else{
+            cerr << "Maximum clients reached. Rejecting connection\n";
             close(clientSocket);
         }
-
-        cout << "Client connected\n";
+        mtx.unlock();
     }
     // close server
     close(serverSocket);
