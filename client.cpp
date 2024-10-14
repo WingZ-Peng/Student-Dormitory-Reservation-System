@@ -39,7 +39,8 @@ int main(){
             return 1;
         }
 
-        cout << "Message sent\n";
+        cout << "Client has sent Department " << str << " to Main Server using TCP over port "
+            << PORT << '.' << endl;
 
         // Receiving the reponse from the server
         char buffer[1024] = { 0 }; // clear buffer before each new recv 
