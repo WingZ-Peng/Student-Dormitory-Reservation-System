@@ -2,6 +2,8 @@
 
 using namespace std;
 
+const int PORT = 24778;
+
 // Function to split a string by a delimiter
 vector<string> split(const string& s, char delimiter) {
     vector<string> tokens;
@@ -124,17 +126,7 @@ void handleClient(int clientSocket, const unordered_map<int, unordered_set<strin
     }
 }
 
-/*
-// Thread function to handle a client
-void clientHandler(int clientSocket, const unordered_map<int, unordered_set<string>>& campusServerID) {
-    handleClient(clientSocket, campusServerID);
-    close(clientSocket);
-}
-*/
-
 int main() {
-    const int PORT = 24778;
-
     // Load department data from file
     unordered_map<int, unordered_set<string>> campusServerID = loadDepartmentData("list.txt");
 
@@ -158,24 +150,28 @@ int main() {
         
         if (clientSocket < 0) {
             cerr << "Accept failed\n";
-            close(serverSocket);
-            return 1;
-            // multithreading
-            // cerr << "Accept failed\n";
-            // continue;
+            continue;
+        }
+
+        pid_t pid = fork(); // create a new process
+        if (pid < 0){
+            cerr << "Fork failed\n";
+            close(clientSocket);
+            continue;
+        } else if (pid == 0){
+            // cliend process
+            /* the child process inherits copies of all file descriptors from the parent, 
+               including the serverSocket. If the child process continues to keep the serverSocket open, 
+               it will hold a reference to it, which may lead to unnecessary resource consumption.
+            */
+           close(serverSocket);
+           handleClient(clientSocket, campusServerID);
+           exit(0);
+        } else{
+            close(clientSocket);
         }
 
         cout << "Client connected\n";
-
-        // Handle client communication
-        handleClient(clientSocket, campusServerID);
-
-        // Close sockets
-        close(clientSocket);
-
-        // multithreading
-        // thread t(clientHandler, clientSocket, campusServerID);
-        // t.detach()
     }
     // close server
     close(serverSocket);
