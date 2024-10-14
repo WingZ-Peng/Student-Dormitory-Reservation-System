@@ -78,40 +78,59 @@ int createSocket(int port) {
 // Function to handle client communication
 void handleClient(int clientSocket, const unordered_map<int, unordered_set<string>>& campusServerID) {
     char buffer[1024] = { 0 };
-    int serverID = -1;
-
-    int byteReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
     
-    if (byteReceived < 0) {
-        cerr << "Receive failed\n";
-        return;
-    } else if (byteReceived == 0) {
-        cout << "Client disconnected\n";
-        return;
-    }
-
-    // Search for the department in the map
-    for (const auto& pair : campusServerID) {
-        const auto& innerSet = pair.second;
-        if (innerSet.find(string(buffer)) != innerSet.end()) {
-            serverID = pair.first;
-            break;  // Exit loop once found
+    while (true) {
+        // receive a message from the client
+        int byteReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+        
+        if (byteReceived < 0) {
+            cerr << "Receive failed\n";
+            return;
+        } else if (byteReceived == 0) {
+            cout << "Client disconnected\n";
+            return;
         }
-    }
 
-    string reponse;
-    if (serverID == -1) {
-        reponse = "Department not found";
-        cout << reponse << endl;
-    } else {
-        reponse = "Department " + string(buffer) + " is associated with Campus server " + to_string(serverID);
-        cout << reponse << endl;
-    }
+        string receivedMsg(buffer);
+        int serverID = -1;
+        // Search for the department in the map
+        for (const auto& pair : campusServerID) {
+            const auto& innerSet = pair.second;
+            if (innerSet.find(receivedMsg) != innerSet.end()) {
+                serverID = pair.first;
+                break;  // Exit loop once found
+            }
+        }
 
-    if (send(clientSocket, reponse.c_str(), reponse.length(), 0) < 0){
-        cerr << "Failed to send reponse to client\n";
+        string response;
+        if (serverID == -1) {
+            response = "Department not found";
+            cout << response << endl;
+        } else {
+            response = "Department " + string(buffer) + " is associated with Campus server " + to_string(serverID);
+            cout << response << endl;
+        }
+
+        // clear the buffer and send a reponse to the client
+        memset(buffer, 0, sizeof(buffer));
+        strcpy(buffer, response.c_str());
+
+        if (send(clientSocket, buffer, response.size(), 0) < 0){
+            cerr << "Failed to send reponse to client\n";
+            return;
+        }
+
+        memset(buffer, 0, sizeof(buffer));
     }
 }
+
+/*
+// Thread function to handle a client
+void clientHandler(int clientSocket, const unordered_map<int, unordered_set<string>>& campusServerID) {
+    handleClient(clientSocket, campusServerID);
+    close(clientSocket);
+}
+*/
 
 int main() {
     const int PORT = 24778;
@@ -141,6 +160,9 @@ int main() {
             cerr << "Accept failed\n";
             close(serverSocket);
             return 1;
+            // multithreading
+            // cerr << "Accept failed\n";
+            // continue;
         }
 
         cout << "Client connected\n";
@@ -150,6 +172,10 @@ int main() {
 
         // Close sockets
         close(clientSocket);
+
+        // multithreading
+        // thread t(clientHandler, clientSocket, campusServerID);
+        // t.detach()
     }
     // close server
     close(serverSocket);

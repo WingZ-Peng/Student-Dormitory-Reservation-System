@@ -25,32 +25,32 @@ int main(){
         return 1;
     }
 
-    cout << "Connected to server\n";
+    cout << "Client is up and running\n";
 
-    // sending data
-    string str;
-    cout << "-----Start a new query-----" << endl;
-    cout << "Enter Department Name: ";
-    cin >> str;
-    cout << endl;
+    while (true) {
+        // sending data
+        string str;
+        cout << "Enter Department Name: ";
+        cin >> str;
+        cout << endl;
 
-    const char* message = str.c_str();
-    if (send(clientSocket, message, strlen(message), 0) < 0){
-        cerr << "Send failed\n";
-        return 1;
+        if (send(clientSocket, str.c_str(), strlen(str.c_str()), 0) < 0){
+            cerr << "Send failed\n";
+            return 1;
+        }
+
+        cout << "Message sent\n";
+
+        // Receiving the reponse from the server
+        char buffer[1024] = { 0 }; // clear buffer before each new recv 
+        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesReceived < 0){
+            cerr << "Failed to receive response from server\n";
+        } else{
+            cout << buffer << endl;
+        }
+        cout << "-----Start a new query-----" << endl;
     }
-
-    cout << "Message sent\n";
-
-    // Receiving the reponse from the server
-    char buffer[1024] = { 0 };
-    int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-    if (bytesReceived < 0){
-        cerr << "Failed to receive response from server\n";
-    } else{
-        cout << buffer << endl;
-    }
-
     // closing socket
     close(clientSocket);
 
