@@ -99,10 +99,17 @@ void handleClient(int clientSocket, const unordered_map<int, unordered_set<strin
         }
     }
 
+    string reponse;
     if (serverID == -1) {
-        cout << "Department not found." << endl;
+        reponse = "Department not found";
+        cout << reponse << endl;
     } else {
-        cout << "Department " << buffer << " is associated with Campus server " << serverID << endl;
+        reponse = "Department " + string(buffer) + " is associated with Campus server " + to_string(serverID);
+        cout << reponse << endl;
+    }
+
+    if (send(clientSocket, reponse.c_str(), reponse.length(), 0) < 0){
+        cerr << "Failed to send reponse to client\n";
     }
 }
 
@@ -125,22 +132,26 @@ int main() {
     cout << "Main server is up and running" << endl;
     cout << "Main server has read the department list from list.txt." << endl;
     
-    // Accepting connection
-    int clientSocket = accept(serverSocket, nullptr, nullptr);
-    
-    if (clientSocket < 0) {
-        cerr << "Accept failed\n";
-        close(serverSocket);
-        return 1;
+    // keep accepting and handling client connections in a loop
+    while (true) {
+        // Accepting connection
+        int clientSocket = accept(serverSocket, nullptr, nullptr);
+        
+        if (clientSocket < 0) {
+            cerr << "Accept failed\n";
+            close(serverSocket);
+            return 1;
+        }
+
+        cout << "Client connected\n";
+
+        // Handle client communication
+        handleClient(clientSocket, campusServerID);
+
+        // Close sockets
+        close(clientSocket);
     }
-
-    cout << "Client connected\n";
-
-    // Handle client communication
-    handleClient(clientSocket, campusServerID);
-
-    // Close sockets
-    close(clientSocket);
+    // close server
     close(serverSocket);
 
     return 0;

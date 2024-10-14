@@ -42,6 +42,15 @@ int main(){
 
     cout << "Message sent\n";
 
+    // Receiving the reponse from the server
+    char buffer[1024] = { 0 };
+    int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+    if (bytesReceived < 0){
+        cerr << "Failed to receive response from server\n";
+    } else{
+        cout << buffer << endl;
+    }
+
     // closing socket
     close(clientSocket);
 
