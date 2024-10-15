@@ -6,10 +6,14 @@ const int PORT = 24778;
 const int MAX_CLIENTS = 3;
 
 int activeClients = 0;
-mutex mtx; // Mutex for thread safety
+int nextCliendID = 1;
 int serverSocket;
-map<int, unordered_set<string>> campusServerID;
 string serverIDs;
+
+set<int> availableIDs = {1, 2, 3}; // set to keep track of available IDs
+map<int, unordered_set<string>> campusServerID;
+
+mutex mtx; // Mutex for thread safety
 
 // Function to split a string by a delimiter
 vector<string> split(const string& s, char delimiter) {
@@ -100,10 +104,10 @@ void handleClient(int clientSocket, int ClientID) {
         
         if (byteReceived < 0) {
             cerr << "Receive failed\n";
-            return;
+            break;
         } else if (byteReceived == 0) {
             cout << "Client disconnected\n";
-            return;
+            break;
         }
 
         string receivedMsg(buffer);
@@ -145,7 +149,7 @@ void handleClient(int clientSocket, int ClientID) {
 
         if (send(clientSocket, buffer, response.size(), 0) < 0){
             cerr << "Failed to send reponse to client\n";
-            return;
+            break;
         }
 
         memset(buffer, 0, sizeof(buffer));
@@ -190,8 +194,10 @@ int main() {
         mtx.lock();
         
         if (activeClients < MAX_CLIENTS) {
+            int clientID = *availableIDs.begin();
+            availableIDs.erase(availableIDs.begin());
             ++activeClients;
-            cout << "Client connected. Active clients: " << activeClients << endl;
+            cout << "Client connected. Active clients: " << clientID << endl;
 
             pid_t pid = fork(); // create a new process
             if (pid < 0){
@@ -206,7 +212,7 @@ int main() {
                 it will hold a reference to it, which may lead to unnecessary resource consumption.
                 */
                 close(serverSocket);
-                handleClient(clientSocket, activeClients);
+                handleClient(clientSocket, clientID);
                 exit(0);
             } else{
                 close(clientSocket);

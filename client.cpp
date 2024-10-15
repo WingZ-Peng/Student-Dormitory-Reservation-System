@@ -1,11 +1,13 @@
 #include "client.h"
 using namespace std;
 
+const int PORT = 24778;
+
 int main(){
     // define
     int clientSocket;
     sockaddr_in serverAddress;
-    const int PORT = 24778;
+    socklen_t addressLength = sizeof(serverAddress);
 
     // creating 
     clientSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -17,13 +19,21 @@ int main(){
     // specify
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(PORT);
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    inet_pton(AF_INET, "127.0.0.1", &serverAddress.sin_addr);
 
     // sending request
     if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0){
         cerr << "Connection failed\n";
         return 1;
     }
+
+    // Get the port number assigned by the OS
+    if (getsockname(clientSocket, (struct sockaddr *)&serverAddress, &addressLength) == -1) {
+        perror("getsockname failed");
+        exit(EXIT_FAILURE);
+    }
+
+    int dynamicPort = ntohs(serverAddress.sin_port);
 
     cout << "Client is up and running\n";
 
@@ -40,7 +50,7 @@ int main(){
         }
 
         cout << "Client has sent Department " << str << " to Main Server using TCP over port "
-            << PORT << '.' << endl;
+            << dynamicPort << '.' << endl;
 
         // Receiving the reponse from the server
         char buffer[1024] = { 0 }; // clear buffer before each new recv 
