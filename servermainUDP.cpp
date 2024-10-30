@@ -1,79 +1,102 @@
 #include "servermain.h"
 using namespace std;
 
-# define BUFFER_SIZE 1024
+#define MAIN_SERVER_PORT 33778
+#define CAMPUS_SERVER_PORT_A 30778
+#define CAMPUS_SERVER_PORT_B 31778
+#define CAMPUS_SERVER_PORT_C 32778
+#define BUFFER_SIZE 1024
 
-void commicateWithServer(const char* serverName, const char* serverIP, int serverPort){
-    int serverSocket;
-    char buffer[BUFFER_SIZE];
-    sockaddr_in serverAddress;
+class MainServer{
+private:
+    unordered_map<string,int> departmentCampusMapping;
 
-    // create socket by using UDP
-    serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
-    if (serverSocket == -1){
-        cerr << "Error creating socket\n";
-        exit(1);
+    void getDepartmentList(int sockfd, int campusPort){
+        struct sockaddr_in campusAddress;
+
+        // configure server address
+        memset(&campusAddress, 0, sizeof(campusAddress));
+        campusAddress.sin_family = AF_INET;
+        campusAddress.sin_port = htons(campusPort);
+        inet_pton(AF_INET, "127.0.0.1", &campusAddress.sin_addr);
+
+        string MSG = "DEPARTMENT_LIST";
+        sendto(sockfd, MSG.c_str(), MSG.size(), 0, (const struct sockaddr *)&campusAddress, sizeof(campusAddress));
+
+        char buffer[BUFFER_SIZE];
+        socklen_t len = sizeof(campusAddress);
+        int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&campusAddress, &len);
+        buffer[n] = '\0';
+        cout << "Received: " << buffer << " on port " << campusPort << endl;
+
+        // persist the department list
+        int val = buffer[0] - 'A';
+        const char* ptr = buffer + 2;
+        const char* end = buffer + strlen(buffer);
+
+        while (ptr < end) {
+            const char* comma = strchr(ptr, ',');
+
+            if (comma){
+                departmentCampusMapping.emplace(string(ptr, comma - ptr), val);
+                ptr = comma + 1;
+            }
+            else{
+                departmentCampusMapping.emplace(string(ptr), val);
+                break;
+            }
+        }
+
+        for (const auto& pair : departmentCampusMapping) {
+            std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
+        }
     }
 
-    // configure server address
-    memset(&serverAddress, 0, sizeof(serverAddress));
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(serverPort);
-    inet_pton(AF_INET, serverIP, &serverAddress.sin_addr);
+public:
+    void start(){
+        int sockfd;
+        struct sockaddr_in serverAddress;
+        char buffer[BUFFER_SIZE];
 
-    // send message to the specific server
-    string message = "Hello Server";
-    message += serverName;
-    if (sendto(serverSocket, message.c_str(), message.size(), 0, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0){
-        cerr << "Failed to send message to Server " << serverName << endl;
-        close(serverSocket);
-        exit(1); 
-    }
-    cout << "Message sent to Server " << serverName << endl;
+        // create socket by using UDP
+        sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sockfd == -1){
+            cerr << "socket creation failed" << endl;
+            exit(1);
+        }
 
-    // receive response from the server
-    socklen_t length = sizeof(serverAddress);
-    int bytes = recvfrom(serverSocket, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&serverAddress, &length);
-    if (bytes < 0){
-        cerr << "Failed to receive response from Server " << serverName << endl;
-    }
-    else{
-        buffer[bytes] = '\0';
-        cout << "Received from Server " << serverName << ": " << buffer << endl;
-    }
+        // configure server address
+        memset(&serverAddress, 0, sizeof(serverAddress));
+        serverAddress.sin_family = AF_INET;
+        serverAddress.sin_port = htons(MAIN_SERVER_PORT);
+        inet_pton(AF_INET, "127.0.0.1", &serverAddress.sin_addr);
 
-    // close
-    close(serverSocket);
-    exit(0);
-}
+        // build the socket
+        if (::bind(sockfd, (const struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0){
+            cerr << "bind failed" << endl;
+            close(sockfd);
+            exit(1);
+        }
+
+        // get department list info at first
+        getDepartmentList(sockfd, CAMPUS_SERVER_PORT_A);
+        getDepartmentList(sockfd, CAMPUS_SERVER_PORT_B);
+        getDepartmentList(sockfd, CAMPUS_SERVER_PORT_C);
+
+        // stand by for further queries
+        while (true){
+            string department;
+            cout << "Enter department name: ";
+            cin >> department;
+        }
+
+        close(sockfd);
+    }
+};
 
 int main(){
-    // Server infomation
-    struct ServerInfo{
-        const char* name;
-        const char* ip;
-        int port;
-    } servers[] = {
-        {"A", "127.0.0.1", 30778},
-        {"B", "127.0.0.1", 31778},
-        {"C", "127.0.0.1", 32778}
-    };
-
-    // create child process for each server connection
-    for (int i = 0; i < 3; ++i){
-        pid_t pid = fork();
-        if (pid < 0){
-            cerr << "Failed to fork for Server " << servers[i].name << endl;
-        }
-        else if (pid == 0){
-            commicateWithServer(servers[i].name, servers[i].ip, servers[i].port);
-        }
-    }
-
-    // wait for all child process to complete
-    for (int i = 0; i < 3; ++i){
-        wait(NULL);
-    }
+    MainServer mainServer;
+    mainServer.start();
     
     return 0;
 }
