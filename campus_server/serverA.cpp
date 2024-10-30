@@ -1,6 +1,10 @@
 #include "server.h"
 using namespace std;
 
+#define serverName "A"
+#define PORT 30778
+#define BUFFER_SIZE 1024
+
 // Helper function to trim whitespace from both ends of a string
 string trim(const string& s) {
     auto start = s.begin();
@@ -76,9 +80,6 @@ void print(const string& filePath, const vector<string>& departments, const unor
 }
 
 int main(){
-    const int PORT = 24778;
-    const int BUFFER_SIZE = 1024;
-
     string filePath = "../data/dataA.txt";
     vector<string> departments;
     unordered_map<string, int> availabilityCount;
@@ -88,30 +89,50 @@ int main(){
     // print out info
     // print(filePath, departments, availabilityCount, buildingIds);
 
-    int len;
     int serverSocket;
     char buffer[BUFFER_SIZE];
-    sockaddr_in serverAddress;
-    socklen_t length;
+    sockaddr_in serverAddress, clientAddress;
 
     // create socket by using UDP
     serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
     if (serverSocket == -1){
-        cerr << "Error creating socket\n";
+        cerr << "Failed to create socket for Sever " << serverName << endl;
         return -1;
     }
 
-    serverAddress.sin_family      = AF_INET;
-    serverAddress.sin_port        = htons(PORT);
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    // configure server address
+    memset(&serverAddress, 0, sizeof(serverAddress));
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(PORT);
+    inet_pton(AF_INET, "127.0.0.1", &serverAddress.sin_addr);
 
-    string message = "Hello from client";
-    sendto(serverSocket, message.c_str(), message.size(), 0, (const struct sockaddr *)&serverAddress, sizeof(serverAddress));
-    cout << "Message sent to server." << endl;
+    // build the socket
+    if (::bind(serverSocket, (const struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0){
+        cerr << "Failed to bind socket for Sever " << serverName << endl;
+        close(serverSocket);
+        return -1;
+    }
+    
+    cout << "Server " << serverName << " listening on port " << PORT << endl;
 
-    len = recvfrom(serverSocket, (char*)buffer, BUFFER_SIZE, MSG_WAITALL, (struct sockaddr*)&serverAddress, &length);
-    buffer[len] = '\0';
-    cout << "Server: " << buffer << endl;
+    // receive incoming datagrams from clients
+    while (true){
+        socklen_t length = sizeof(clientAddress);
+        int bytes = recvfrom(serverSocket, (char*)buffer, BUFFER_SIZE, 0, (struct sockaddr*)&clientAddress, &length);
+        if (bytes < 0){
+        cerr << "Failed to receive response from Server " << serverName << endl;
+        }
+        else{
+            buffer[bytes] = '\0';
+            cout << "Received from Server " << serverName << ": " << buffer << endl;
+        }
+
+        // send response to the main server
+        string response = "Hello from server ";
+        response += serverName;
+        sendto(serverSocket, response.c_str(), response.size(), 0, (struct sockaddr *)&clientAddress, length);
+        cout << "Response sent to main server." << endl;
+    }
     
     close(serverSocket);
     return 0;
