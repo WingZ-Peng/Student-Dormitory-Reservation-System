@@ -12,7 +12,7 @@ private:
     unordered_map<string,int> departmentCampusMapping;
     unordered_map<int, struct sockaddr_in> campusServerAddressMapping;
 
-    void getDepartmentList(int sockfd, int campusPort){
+    void processDepartmentList(int sockfd, int campusPort){
         struct sockaddr_in campusAddress;
 
         // configure server address
@@ -30,6 +30,11 @@ private:
         int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&campusAddress, &len);
         buffer[n] = '\0';
 
+        // print onscreen message receiving the department lists from Campus server
+        string departmentList = "Server " + string(1, buffer[0]) + ": ";
+        cout << "Main server has received the department list from Campus server " << string(1, buffer[0])
+            << " using UDP over port " << MAIN_SERVER_PORT << endl;
+
         // persist the department list
         int val = buffer[0] - 'A';
         const char* ptr = buffer + 2;
@@ -39,14 +44,19 @@ private:
             const char* comma = strchr(ptr, ',');
 
             if (comma){
-                departmentCampusMapping.emplace(string(ptr, comma - ptr), val);
+                string departmentName(ptr, comma - ptr);
+                departmentCampusMapping.emplace(departmentName, val);
+                departmentList += departmentName + ", ";
                 ptr = comma + 1;
             }
             else{
                 departmentCampusMapping.emplace(string(ptr), val);
+                departmentList += string(ptr);
                 break;
             }
         }
+        cout << departmentList << endl;
+        cout << endl;
     }
 
 public:
@@ -76,36 +86,48 @@ public:
         }
 
         // get department list info at first
-        getDepartmentList(sockfd, CAMPUS_SERVER_PORT_A);
-        getDepartmentList(sockfd, CAMPUS_SERVER_PORT_B);
-        getDepartmentList(sockfd, CAMPUS_SERVER_PORT_C);
+        processDepartmentList(sockfd, CAMPUS_SERVER_PORT_A);
+        processDepartmentList(sockfd, CAMPUS_SERVER_PORT_B);
+        processDepartmentList(sockfd, CAMPUS_SERVER_PORT_C);
 
         // stand by for further queries
         while (true){
             string department, type;
+
             cout << "Enter department name: ";
             cin >> department;
-            cout << "Enter domitory type (S/D/T): ";
-            cin >> type;
-
             if (departmentCampusMapping.find(department) == departmentCampusMapping.end()){
-                cout << "Department not found." << endl;
+                cout << department <<  " does not show up in Campus servers" << endl;
+                cout << endl;
                 continue;
             }
 
+            cout << "Enter domitory type (S/D/T): ";
+            cin >> type;
+
             int campusPort = departmentCampusMapping[department];
-            if (campusPort == 0) 
+            string serverName;
+            if (campusPort == 0){
                 campusPort = CAMPUS_SERVER_PORT_A;
-            else if (campusPort == 1) 
+                serverName = "A";
+            }
+            else if (campusPort == 1){ 
                 campusPort = CAMPUS_SERVER_PORT_B;
-            else 
+                serverName = "B";
+            }
+            else{ 
                 campusPort = CAMPUS_SERVER_PORT_C;
+                serverName = "C";
+            }
 
             struct sockaddr_in campusAddress = campusServerAddressMapping[campusPort];
 
             // send query
-            string query = type;
+            string query = department + ',' + type;
             sendto(sockfd, query.c_str(), query.size(), 0, (const struct sockaddr*)&campusAddress, sizeof(campusAddress));
+            cout << "The Main Server has sent query for " << department << " department and " << type
+                << " type dormitory to server " <<  serverName << " using UDP over port " << MAIN_SERVER_PORT << endl;
+            cout << endl;
 
             // clean buffer
             memset(buffer, 0, sizeof(buffer));
@@ -113,7 +135,17 @@ public:
             // receive response from the compus server
             socklen_t len = sizeof(campusAddress);
             int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&campusAddress, &len);
-            cout << "There are " << buffer << endl;
+            buffer[n] = '\0';
+            string result(buffer);
+            // failed to find the dormitory type
+            if (result == "NOT FOUND"){
+                cout << type << " does not show up in Campus servers" << endl;
+            }
+            else {
+                cout << "The Main server has received searching result(s) of " << type 
+                    << " type dormitory from Campus server " << serverName << endl;
+                cout << "There are totally " << result << endl;
+            }
             cout << endl;
             cout << "-----Start a new query-----" << endl;
             memset(buffer, 0, sizeof(buffer));
@@ -126,6 +158,10 @@ public:
 
 int main(){
     MainServer mainServer;
+
+    // booting up
+    cout << "Main server is up and running." << endl;
+    cout << endl;
     mainServer.start();
     
     return 0;

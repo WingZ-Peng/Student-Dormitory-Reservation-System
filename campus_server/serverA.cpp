@@ -111,26 +111,44 @@ public:
             response += ',' + department;
         }
         sendto(sockfd, response.c_str(), response.length(), 0, (const struct sockaddr *)&mainServerAddress, len);
+        cout << "Server A has sent a department list to Main Server" << endl;
+        cout << endl;
 
         // Stand by for further queries
         while (true){
+            // clean buffer and be ready 
+            memset(buffer, 0, sizeof(buffer));
             n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&mainServerAddress, &len);
             buffer[n] = '\0';
-            string query(buffer);
-
+            
             // handle query
-            string response = to_string(availabilityCount[query]) + " available rooms in "
-                            + query + " type dormitories. Their Building IDs are: ";
-            for (const auto& id : buildingIds[query]){
-                response += id + ',' + ' ';
-            }
-            response[response.size()-2] = '.';
+            string query(buffer);
+            size_t commaPos = query.find(',');
+            string department = query.substr(0, commaPos);
+            string type = query.substr(commaPos + 1);
+            cout << "Server A has received a request for department " << department << " dormitory type " << type << endl;;
 
-            // print onscreen message and send response;
-            cout << "Server A found " << response << endl;
-            cout << "Server A has sent the results to Main Server" << endl;
-            cout << endl;
+            // create response
+            string response;
+            if (availabilityCount.find(type) == availabilityCount.end()){
+                response = "NOT FOUND";
+            }
+            else{
+                response = to_string(availabilityCount[type]) + " available rooms for "
+                            + type + " type dormitory in Building: ";
+                for (const auto& id : buildingIds[type]){
+                    response += id + ',' + ' ';
+                }
+                response[response.size()-2] = '.';
+
+                // print onscreen message 
+                cout << "Server A found totally " << response << endl;
+                cout << "Server A has sent the results to Main Server" << endl;
+                cout << endl;
+            }
+            // send response
             sendto(sockfd, response.c_str(), response.length(), 0, (const struct sockaddr *)&mainServerAddress, len);
+            memset(buffer, 0, sizeof(buffer));
         }
 
         close(sockfd);
@@ -140,6 +158,9 @@ public:
 int main(){
     string filePath = "../data/dataA.txt";
     CampusServerA server(filePath);
+
+    // booting up
+    cout << "Server A is up and running using UDP on port " << CAMPUS_SERVER_PORT_A << endl;
     server.start();
 
     return 0;
