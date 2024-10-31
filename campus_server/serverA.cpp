@@ -4,11 +4,12 @@ using namespace std;
 #define CAMPUS_SERVER_PORT_A 30778
 #define MAIN_SERVER_PORT 33778
 #define BUFFER_SIZE 1024
+
 class CampusServerA{
 private:
     vector<string> departments;
     unordered_map<string, int> availabilityCount;
-    unordered_map<string, unordered_set<string> > buildingIds;
+    unordered_map<string, vector<string> > buildingIds;
 
     void readData(const string& filePath){
         ifstream file(filePath);
@@ -39,7 +40,7 @@ private:
             int availailty = stoi(availabilityStr);
             availabilityCount[type] += availailty;
             // update building ids
-            buildingIds[type].insert(buildingId);
+            buildingIds[type].push_back(buildingId);
         }
         file.close();
     }
@@ -112,12 +113,24 @@ public:
         sendto(sockfd, response.c_str(), response.length(), 0, (const struct sockaddr *)&mainServerAddress, len);
 
         // Stand by for further queries
-        while (true)
-        {
+        while (true){
             n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&mainServerAddress, &len);
             buffer[n] = '\0';
             string query(buffer);
-            // Handle query and send response
+
+            // handle query
+            string response = to_string(availabilityCount[query]) + " available rooms in "
+                            + query + " type dormitories. Their Building IDs are: ";
+            for (const auto& id : buildingIds[query]){
+                response += id + ',' + ' ';
+            }
+            response[response.size()-2] = '.';
+
+            // print onscreen message and send response;
+            cout << "Server A found " << response << endl;
+            cout << "Server A has sent the results to Main Server" << endl;
+            cout << endl;
+            sendto(sockfd, response.c_str(), response.length(), 0, (const struct sockaddr *)&mainServerAddress, len);
         }
 
         close(sockfd);

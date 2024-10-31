@@ -10,6 +10,7 @@ using namespace std;
 class MainServer{
 private:
     unordered_map<string,int> departmentCampusMapping;
+    unordered_map<int, struct sockaddr_in> campusServerAddressMapping;
 
     void getDepartmentList(int sockfd, int campusPort){
         struct sockaddr_in campusAddress;
@@ -19,6 +20,7 @@ private:
         campusAddress.sin_family = AF_INET;
         campusAddress.sin_port = htons(campusPort);
         inet_pton(AF_INET, "127.0.0.1", &campusAddress.sin_addr);
+        campusServerAddressMapping[campusPort] = campusAddress;
 
         string MSG = "DEPARTMENT_LIST";
         sendto(sockfd, MSG.c_str(), MSG.size(), 0, (const struct sockaddr *)&campusAddress, sizeof(campusAddress));
@@ -27,7 +29,6 @@ private:
         socklen_t len = sizeof(campusAddress);
         int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&campusAddress, &len);
         buffer[n] = '\0';
-        cout << "Received: " << buffer << " on port " << campusPort << endl;
 
         // persist the department list
         int val = buffer[0] - 'A';
@@ -45,10 +46,6 @@ private:
                 departmentCampusMapping.emplace(string(ptr), val);
                 break;
             }
-        }
-
-        for (const auto& pair : departmentCampusMapping) {
-            std::cout << "Key: " << pair.first << ", Value: " << pair.second << std::endl;
         }
     }
 
@@ -85,9 +82,42 @@ public:
 
         // stand by for further queries
         while (true){
-            string department;
+            string department, type;
             cout << "Enter department name: ";
             cin >> department;
+            cout << "Enter domitory type (S/D/T): ";
+            cin >> type;
+
+            if (departmentCampusMapping.find(department) == departmentCampusMapping.end()){
+                cout << "Department not found." << endl;
+                continue;
+            }
+
+            int campusPort = departmentCampusMapping[department];
+            if (campusPort == 0) 
+                campusPort = CAMPUS_SERVER_PORT_A;
+            else if (campusPort == 1) 
+                campusPort = CAMPUS_SERVER_PORT_B;
+            else 
+                campusPort = CAMPUS_SERVER_PORT_C;
+
+            struct sockaddr_in campusAddress = campusServerAddressMapping[campusPort];
+
+            // send query
+            string query = type;
+            sendto(sockfd, query.c_str(), query.size(), 0, (const struct sockaddr*)&campusAddress, sizeof(campusAddress));
+
+            // clean buffer
+            memset(buffer, 0, sizeof(buffer));
+
+            // receive response from the compus server
+            socklen_t len = sizeof(campusAddress);
+            int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr*)&campusAddress, &len);
+            cout << "There are " << buffer << endl;
+            cout << endl;
+            cout << "-----Start a new query-----" << endl;
+            memset(buffer, 0, sizeof(buffer));
+            
         }
 
         close(sockfd);

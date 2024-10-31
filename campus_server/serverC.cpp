@@ -87,12 +87,24 @@ public:
         sendto(sockfd, response.c_str(), response.length(), 0, (const struct sockaddr *)&mainServerAddress, len);
 
         // Stand by for further queries
-        while (true)
-        {
+        while (true){
             n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&mainServerAddress, &len);
             buffer[n] = '\0';
             std::string query(buffer);
-            // Handle query and send response
+
+            // handle query
+            string response = to_string(availabilityCount[query]) + " available rooms in "
+                            + query + " type dormitories. Their Building IDs are: ";
+            for (const auto& id : buildingIds[query]){
+                response += id + ',' + ' ';
+            }
+            response[response.size()-2] = '.';
+
+            // print onscreen message and send response;
+            cout << "Server C found " << response << endl;
+            cout << "Server C has sent the results to Main Server" << endl;
+            cout << endl;
+            sendto(sockfd, response.c_str(), response.length(), 0, (const struct sockaddr *)&mainServerAddress, len);
         }
 
         close(sockfd);
