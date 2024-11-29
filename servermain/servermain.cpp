@@ -13,30 +13,7 @@ private:
     unordered_map<string, int> department_campus_mapping_;
     unordered_map<int, struct sockaddr_in> campus_server_address_mapping_;
 
-    void ProcessDepartmentList(int sockfd, int campus_port) {
-        struct sockaddr_in campus_address;
-
-        // Configure server address
-        memset(&campus_address, 0, sizeof(campus_address));
-        campus_address.sin_family = AF_INET;
-        campus_address.sin_port = htons(campus_port);
-        inet_pton(AF_INET, "127.0.0.1", &campus_address.sin_addr);
-        campus_server_address_mapping_[campus_port] = campus_address;
-
-        string message = "DEPARTMENT_LIST";
-        sendto(sockfd, message.c_str(), message.size(), 0, (const struct sockaddr *)&campus_address, sizeof(campus_address));
-
-        char buffer[BUFFER_SIZE];
-        socklen_t len = sizeof(campus_address);
-        int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&campus_address, &len);
-        buffer[n] = '\0';
-
-        // Print on-screen message receiving the department lists from Campus server
-        string department_list = "Server " + string(1, buffer[0]) + ": ";
-        cout << "Main server has received the department list from Campus server " << string(1, buffer[0])
-             << " using UDP over port " << MAIN_SERVER_UDP_PORT << endl;
-
-        // Persist the department list
+    void persistDepartmentList(char buffer[], string& department_list) {
         int campus_id = buffer[0] - 'A';
         const char* ptr = buffer + 2;
         const char* end = buffer + strlen(buffer);
@@ -49,17 +26,44 @@ private:
                 department_campus_mapping_.emplace(department_name, campus_id);
                 department_list += department_name + ", ";
                 ptr = comma + 1;
-            } else {
+            } 
+            else {
                 department_campus_mapping_.emplace(string(ptr), campus_id);
                 department_list += string(ptr);
                 break;
             }
         }
+    }
+
+    void processDepartmentList(int sockfd, int campus_port) {
+        sockaddr_in campus_address;
+
+        // Configure server address
+        memset(&campus_address, 0, sizeof(campus_address));
+        campus_address.sin_family = AF_INET;
+        campus_address.sin_port = htons(campus_port);
+        inet_pton(AF_INET, "127.0.0.1", &campus_address.sin_addr);
+        campus_server_address_mapping_[campus_port] = campus_address;
+
+        string message = "DEPARTMENT_LIST";
+        sendto(sockfd, message.c_str(), message.size(), 0, (const sockaddr*)&campus_address, sizeof(campus_address));
+
+        char buffer[BUFFER_SIZE];
+        socklen_t len = sizeof(campus_address);
+        int bytes_received = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (sockaddr*)&campus_address, &len);
+        buffer[bytes_received] = '\0';
+
+        // Print on-screen message receiving the department lists from Campus server
+        string department_list = "Server " + string(1, buffer[0]) + ": ";
+        cout << "Main server has received the department list from Campus server " << string(1, buffer[0])
+             << " using UDP over port " << MAIN_SERVER_UDP_PORT << endl;
+
+        persistDepartmentList(buffer, department_list);
         cout << department_list << endl;
         cout << endl;
     }
 
-    int CreateUdpSocket() {
+    int createUdpSocket() {
         int udp_socket;
         struct sockaddr_in udp_address;
 
@@ -86,7 +90,7 @@ private:
         return udp_socket;
     }
 
-    int CreateTcpSocket() {
+    int createTcpSocket() {
         int tcp_socket;
         struct sockaddr_in tcp_address;
 
@@ -119,26 +123,24 @@ private:
         return tcp_socket;
     }
 
-    
 public:
-    void Start() {
-        // UDP & TCP setup
-        int udp_socket = CreateUdpSocket();
-        int tcp_socket = CreateTcpSocket();
-        
+    void start() {
+        int udp_socket = createUdpSocket();
+        int tcp_socket = createTcpSocket();
+
         // Get department list info at first
-        ProcessDepartmentList(udp_socket, CAMPUS_SERVER_PORT_A);
-        ProcessDepartmentList(udp_socket, CAMPUS_SERVER_PORT_B);
-        ProcessDepartmentList(udp_socket, CAMPUS_SERVER_PORT_C);
+        processDepartmentList(udp_socket, CAMPUS_SERVER_PORT_A);
+        processDepartmentList(udp_socket, CAMPUS_SERVER_PORT_B);
+        processDepartmentList(udp_socket, CAMPUS_SERVER_PORT_C);
 
         // Handle tcp & udp connection
         int client_socket;
-        struct sockaddr_in client_address, campus_address;
+        sockaddr_in client_address, campus_address;
         socklen_t client_len = sizeof(client_address);
         char buffer[BUFFER_SIZE];
-        
+
         while (true) {
-            client_socket = accept(tcp_socket, (struct sockaddr*)&client_address, &client_len);
+            client_socket = accept(tcp_socket, (sockaddr*)&client_address, &client_len);
             if (client_socket < 0) {
                 cerr << "Accept failed" << endl;
                 continue;
@@ -148,8 +150,8 @@ public:
 
             // Read data from client
             memset(buffer, 0, sizeof(buffer));
-            int bytes_received_from_client = recv(client_socket, buffer, sizeof(buffer), 0);
-            if (bytes_received_from_client < 0) {
+            int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+            if (bytes_received < 0) {
                 cerr << "Read failed from client" << endl;
                 close(client_socket);
                 continue;
@@ -175,10 +177,10 @@ public:
 
             cout << response << endl;
 
-            // Send result to client
-            if (send(client_socket, response.c_str(), strlen(response.c_str()), 0) < 0) {
-                cerr << "Response failed" << endl;
-                exit(1);
+            if (send(client_socket, response.c_str(), response.size(), 0) < 0) {
+                cerr << "Response to client failed" << endl;
+                close(client_socket);
+                continue;
             }
 
             memset(buffer, 0, sizeof(buffer));
@@ -191,11 +193,9 @@ public:
 
 int main() {
     MainServer main_server;
-
-    // Booting up
-    cout << "Main server is up and running." << endl;
-    cout << endl;
-    main_server.Start();
     
+    cout << "Main server is up and running." << endl << endl;
+    main_server.start();
+
     return 0;
 }
