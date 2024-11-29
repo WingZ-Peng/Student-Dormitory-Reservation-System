@@ -1,8 +1,8 @@
 #include "server.h"
 using namespace std;
 
-#define CAMPUS_SERVER_PORT_A 30778
-#define MAIN_SERVER_PORT 33778
+#define CAMPUS_SERVER_PORT_A 31778
+#define MAIN_SERVER_PORT 34778
 #define BUFFER_SIZE 1024
 
 class CampusServerA{
