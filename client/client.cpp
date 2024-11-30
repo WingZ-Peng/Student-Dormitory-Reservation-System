@@ -63,22 +63,22 @@ private:
 
     bool isValidUsername(const string& username) {
         if (username.size() < 5 || username.size() > 50) {
-            cerr << "Error: Username must be between 5 and 50 lowercase characters." << endl;
+            cerr << "Error: Username must be between 5 and 50 characters." << endl;
             return false;
         }
-        for (const char& c : username) {
-            if (!islower(c)) {
-                cerr << "Error: Username must contain only lowercase characters." << endl;
-                return false;
-            }
-        }
+        // for (const char& c : username) {
+        //     if (!islower(c)) {
+        //         cerr << "Error: Username must contain only lowercase characters." << endl;
+        //         return false;
+        //     }
+        // }
 
         return true;
     }
 
     bool isValidPassword(const string& password) {
         if (password.size() < 5 || password.size() > 50) {
-            cerr << "Error: Password must be between 5 and 50 lowercase characters." << endl;
+            cerr << "Error: Password must be between 5 and 50 characters." << endl;
             return false;
         }
     
@@ -90,34 +90,30 @@ public:
         int client_socket = createClientSocket();
         char buffer[BUFFER_SIZE];
 
-        cout << "Client is up and running" << endl;
         while (true) {
             string username, password, department;
             string encrypted_username, encrypted_password;
             string query, dormitory_type, action, building_id;
 
             // Input username
-            cout << "Enter user name: ";
-            cin.ignore();
+            cout << "Please enter username: ";
             getline(cin, username);
             if (!isValidUsername(username)) continue;
 
             // Input password
-            cout << "Enter password: ";
-            cin.ignore();
+            cout << "Please enter password: ";
             getline(cin, password);
             if (!isValidPassword(password)) continue;
 
             // Input department name
-            cout << "Enter department name: ";
-            cin.ignore();
+            cout << "Please enter department name: ";
             getline(cin, department);
             cout << endl;
 
             // Encrypt username and password
             encrypted_username = encrypt(username);
             encrypted_password = encrypt(password);
-            query = "Member" + encrypted_username + ',' + encrypted_password;
+            query = "Member," + encrypted_username + "," + encrypted_password;
 
             // Send query for validation
             if (send(client_socket, query.c_str(), query.size(), 0) < 0) {
@@ -125,8 +121,7 @@ public:
                 exit(1);
             }
 
-            cout << "Member has sent message " << query << " to Main Server using TCP over port "
-                 << dynamic_port_ << '.' << endl;
+            cout << username << " sent an authentication request to the main server." << endl;
 
             // Receive the response from the server
             memset(buffer, 0, sizeof(buffer));
@@ -137,7 +132,7 @@ public:
             }
 
             string response(buffer);
-            if (response == "SUCCESS") {
+            if (response == "PASSED") {
                 cout << "Welcome member " << username << " from " << department << "!" << endl;
             } else {
                 cout << "Failed login. Invalid username/password" << endl;
@@ -145,13 +140,11 @@ public:
             }
 
             // Input dormitory type
-            cout << "Please enter the dormitory type: ";
-            cin.ignore();
+            cout << "Please enter the room type S/D/T: ";
             getline(cin, dormitory_type);
 
             // Client can choose one of three different types of query actions
             cout << "Please enter request action (availability, price, reserve): ";
-            cin.ignore();
             getline(cin, action);
 
             // Validate the permission
@@ -161,13 +154,23 @@ public:
             }
 
             // Prepare query
-            query = department + ',' + dormitory_type + ',' + action;
+            query = department + ',' + action + ',' + dormitory_type;
 
-            if (action == "reserve") {
+            if (action == "availability") {
+                cout << username << " sent a request of Availability for type "
+                    << dormitory_type << " to the main server." << endl;
+            }
+            else if (action == "price") {
+                cout << username << " sent a request of Price for type "
+                    << dormitory_type << " to the main server." << endl;
+            }
+            else if (action == "reserve") {
                 cout << "Please enter Building ID for reservation: ";
-                cin.ignore();
                 getline(cin, building_id);
                 query += ',' + building_id;
+                cout << username << " sent a request of Reserve for type "
+                    << dormitory_type << " and Building ID " << building_id
+                    << " to the main server." << endl;
             }
 
             // Send query
@@ -183,10 +186,14 @@ public:
                 cerr << "Receive response from server failed" << endl;
                 exit(1);
             }
-
+            cout << "The client received the response from the main server using TCP over port "
+                    << dynamic_port_ << '.' << endl;
+            cout << endl;
+            // print out the on screen message
             response = buffer;
             cout << response << endl;
-
+            // start new query
+            cout << endl;
             cout << "-----Start a new query-----" << endl;
         }
 
@@ -196,6 +203,8 @@ public:
 
 int main() {
     Client client;
+
+    cout << "Client is up and running." << endl;
     client.start();
 
     return 0;
