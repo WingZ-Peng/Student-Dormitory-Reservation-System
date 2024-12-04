@@ -184,25 +184,34 @@ private:
             size_t comma_pos = authentication_info.find(',');
             string client_type = authentication_info.substr(0, comma_pos);
             authentication_info = authentication_info.substr(comma_pos + 1);
-            comma_pos = authentication_info.find(',');
-            string username = authentication_info.substr(0, comma_pos);
-            string password = authentication_info.substr(comma_pos + 1);
+            string username, password;
 
-            if (validateLoginInfo(username, password)) {
-                cout << "The authentication passed.";
+            if (client_type == "Member") {
+                comma_pos = authentication_info.find(',');
+                username = authentication_info.substr(0, comma_pos);
+                password = authentication_info.substr(comma_pos + 1);
+
+                if (validateLoginInfo(username, password)) {
+                    cout << "The authentication passed.";
+                    authentication_result = "PASSED";
+                }
+                else {
+                    cout << "The authentication failed";
+                    authentication_result = "FAILED";
+                }
+                cout << endl;
+            }
+            else if (client_type == "Guest") {
+                username = authentication_info;
                 authentication_result = "PASSED";
+                cout << "The authentication passed.";
             }
-            else {
-                cout << "The authentication failed";
-                authentication_result = "FAILED";
-            }
-            cout << endl;
 
             // send validation result back to client
             if (send(client_socket, authentication_result.c_str(), authentication_result.size(), 0) < 0) {
                 cerr << "Send authtication result to client failed" << endl;
                 close(client_socket);
-                continue;
+                continue;;
             }
             cout << "The main server sent the authentication result to the client." << endl;
 
@@ -212,7 +221,7 @@ private:
             if (bytes_received_from_client < 0) {
                 cerr << "Read failed from client (second)" << endl;
                 close(client_socket);
-                continue;
+                continue;;
             }
 
             // Disassemble query 
@@ -224,10 +233,17 @@ private:
             string action = query.substr(0, comma_pos);
             cout << "Main server has received the query from " << client_type << " " << username
                 << " in " << department << " for the request of " << action << endl;
-            
+
             // verify department
             if (department_campus_mapping_.find(department) == department_campus_mapping_.end()) {
                 cout << department << " does not show up in Campus servers." << endl;
+                string response = department + " does not show up in Campus servers.";
+                // send back message 
+                if (send(client_socket, response.c_str(), response.size(), 0) < 0) {
+                    cerr << "Response to client failed" << endl;
+                    close(client_socket);
+                    continue;
+                }
                 continue;
             }
 
@@ -252,7 +268,7 @@ private:
             cout << "The main server forwarded a request of " << action << " to Server " << server_name << " using UDP over port "
                 << MAIN_SERVER_UDP_PORT << endl;
             cout << endl;
-            
+                
             // Clean buffer
             memset(buffer, 0, sizeof(buffer));
 
@@ -290,8 +306,8 @@ public:
 
         // Get department list info at first
         processDepartmentList(udp_socket, CAMPUS_SERVER_PORT_A);
-        // processDepartmentList(udp_socket, CAMPUS_SERVER_PORT_B);
-        // processDepartmentList(udp_socket, CAMPUS_SERVER_PORT_C);
+        processDepartmentList(udp_socket, CAMPUS_SERVER_PORT_B);
+        processDepartmentList(udp_socket, CAMPUS_SERVER_PORT_C);
 
         // Handle tcp connection
         sockaddr_in client_address;

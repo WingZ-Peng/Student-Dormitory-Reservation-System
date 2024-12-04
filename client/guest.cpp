@@ -8,14 +8,34 @@ class Guest {
 private:
     int dynamic_port_;
 
-    int createGuestSocket() {
-        int guest_socket;
+    // Encryption function
+    string encrypt(const string& input) {
+        if (input.empty()) return input;
+        string encrypted = input;
+
+        for (char& c : encrypted) {
+            if (isupper(c)) {
+                c = 'A' + (c - 'A' + 3) % 26;
+            } 
+            else if (islower(c)) {
+                c = 'a' + (c - 'a' + 3) % 26;
+            } 
+            else if (isdigit(c)) {
+                c = '0' + (c - '0' + 3) % 10;
+            }
+        }
+
+        return encrypted;
+    }
+
+    int createClientSocket() {
+        int client_socket;
         struct sockaddr_in server_address;
 
         // Create socket by using TCP
-        guest_socket = socket(AF_INET, SOCK_STREAM, 0);
-        if (guest_socket == -1) {
-            cerr << "Guest socket creation failed" << endl;
+        client_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (client_socket == -1) {
+            cerr << "Socket creation failed" << endl;
             exit(1);
         }
 
@@ -26,93 +46,127 @@ private:
         inet_pton(AF_INET, "127.0.0.1", &server_address.sin_addr);
 
         // Send connection request
-        if (connect(guest_socket, (sockaddr*)&server_address, sizeof(server_address)) < 0) {
+        if (connect(client_socket, (sockaddr*)&server_address, sizeof(server_address)) < 0) {
             cerr << "Connection failed" << endl;
             exit(1);
         }
 
         socklen_t address_length = sizeof(server_address);
-        if (getsockname(guest_socket, (sockaddr*)&server_address, &address_length) == -1) {
+        if (getsockname(client_socket, (sockaddr*)&server_address, &address_length) == -1) {
             cerr << "Failed to get socket name" << endl;
             exit(EXIT_FAILURE);
         }
         dynamic_port_ = ntohs(server_address.sin_port);
 
-        return guest_socket;
-    }
-
-    bool isValidUsername(const string& username) {
-        if (username.size() < 5 || username.size() > 50) {
-            cerr << "Error: Username must be between 5 and 50 lowercase characters." << endl;
-            return false;
-        }
-        for (const char& c : username) {
-            if (!islower(c)) {
-                cerr << "Error: Username must contain only lowercase characters." << endl;
-                return false;
-            }
-        }
-
-        return true;
+        return client_socket;
     }
 
 public:
     void start() {
-        int guest_socket = createGuestSocket();
+        int client_socket = createClientSocket();
         char buffer[BUFFER_SIZE];
 
-        cout << "Guest is up and running" << endl;
         while (true) {
-            string username, department;
-            string query, dormitory_type;
+            string username, password, department;
+            string encrypted_username, encrypted_password;
+            string query, dormitory_type, action, building_id;
 
             // Input username
-            cout << "Enter user name: ";
-            cin.ignore();
+            cout << "Please enter username: ";
             getline(cin, username);
-            if (!isValidUsername(username)) continue;
+
+            // Input password
+            cout << "Please enter password: ";
+            getline(cin, password);
+
+            if (password.empty()) {
+            cout << "Password skipped." << endl;
+            }
 
             // Input department name
-            cout << "Enter department name: ";
-            cin.ignore();
+            cout << "Please enter department name: ";
             getline(cin, department);
             cout << endl;
-            cout << "Welcome guest " << username << " from " << department << "!" << endl;
 
-            // Input dormitory type
-            cout << "Please enter the dormitory type: ";
-            cin.ignore();
-            getline(cin, dormitory_type);
+            // Encrypt username and password
+            encrypted_username = encrypt(username);
+            query = "Guest," + encrypted_username;
 
-            // Prepare query
-            query = department + ',' + dormitory_type + ',' + "availability";
-
-            // Send query
-            if (send(guest_socket, query.c_str(), query.size(), 0) < 0) {
-                cerr << "Send department and dormitory type failed" << endl;
+            // Send query for validation
+            if (send(client_socket, query.c_str(), query.size(), 0) < 0) {
+                cerr << "Send username and password failed" << endl;
                 exit(1);
             }
 
-            // Receive response from the server
+            cout << username << " sent an authentication request to the main server." << endl;
+
+            // Receive the response from the server
             memset(buffer, 0, sizeof(buffer));
-            int bytes_received = recv(guest_socket, buffer, sizeof(buffer), 0);
+            int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
             if (bytes_received < 0) {
                 cerr << "Receive response from server failed" << endl;
                 exit(1);
             }
 
             string response(buffer);
-            cout << response << endl;
+            if (response == "PASSED") {
+                cout << "Welcome guest " << username << " from " << department << "!" << endl;
+            } 
 
+            // Input dormitory type
+            cout << "Please enter the room type S/D/T: ";
+            getline(cin, dormitory_type);
+
+            // Guest only can choose availability 
+            while (action != "availability") {
+                cout << "Please enter request action (availability, price, reserve): ";
+                getline(cin, action);
+                // Validate the permission
+                if (action != "availability") {
+                    cout << "Permission denied, " + action + " is member client only." << endl;
+                }
+            }
+
+            // Prepare query
+            query = department + ',' + action + ',' + dormitory_type;
+
+            if (action == "availability") {
+                cout << username << " sent a request of Availability for type "
+                    << dormitory_type << " to the main server." << endl;
+            }
+
+            // Send query
+            if (send(client_socket, query.c_str(), query.size(), 0) < 0) {
+                cerr << "Send department and dormitory type failed" << endl;
+                exit(1);
+            }
+
+            // Receive response from the server
+            memset(buffer, 0, sizeof(buffer));
+            bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+            if (bytes_received < 0) {
+                cerr << "Receive response from server failed" << endl;
+                exit(1);
+            }
+            cout << "The client received the response from the main server using TCP over port "
+                    << dynamic_port_ << '.' << endl;
+            cout << endl;
+            // print out the on screen message
+            response = buffer;
+            cout << response << endl;
+            // start new query
+            cout << endl;
             cout << "-----Start a new query-----" << endl;
         }
 
-        close(guest_socket);
+        close(client_socket);
     }
 };
 
 int main() {
     Guest guest;
+
+    cout << "Client is up and running." << endl;
     guest.start();
 
     return 0;

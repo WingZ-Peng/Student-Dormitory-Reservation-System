@@ -134,7 +134,8 @@ public:
             string response(buffer);
             if (response == "PASSED") {
                 cout << "Welcome member " << username << " from " << department << "!" << endl;
-            } else {
+            } 
+            else {
                 cout << "Failed login. Invalid username/password" << endl;
                 continue;
             }
