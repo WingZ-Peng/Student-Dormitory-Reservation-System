@@ -159,6 +159,7 @@ private:
                 + '.' + '\n';
             // update
             room_availability_[building_id] -= 1;
+            availability_count_[type] -= 1;
             on_screen_msg += "This room is reserved, and availability is updated to " 
                 + to_string(room_availability_[building_id]) + '.';
             response = "Reservation is successful for Campus B Building ID " + building_id + '!';

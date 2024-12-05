@@ -66,12 +66,12 @@ private:
             cerr << "Error: Username must be between 5 and 50 characters." << endl;
             return false;
         }
-        // for (const char& c : username) {
-        //     if (!islower(c)) {
-        //         cerr << "Error: Username must contain only lowercase characters." << endl;
-        //         return false;
-        //     }
-        // }
+        for (const char& c : username) {
+            if (!islower(c)) {
+                cerr << "Error: Username must contain only lowercase characters." << endl;
+                return false;
+            }
+        }
 
         return true;
     }

@@ -15,6 +15,8 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+#include <algorithm>
+
 using namespace std;
 namespace Utility {
     // Helper function to trim whitespace from both ends of a string
