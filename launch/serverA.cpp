@@ -1,11 +1,11 @@
 #include "server.h"
 using namespace std;
 
-#define CAMPUS_SERVER_PORT_C 33778
+#define CAMPUS_SERVER_PORT_A 31778
 #define MAIN_SERVER_PORT 34778
 #define BUFFER_SIZE 1024
 
-class CampusServerC {
+class CampusServerA {
 private:
     struct RoomInfo {
         int available;
@@ -14,6 +14,7 @@ private:
 
     vector<string> departments_;
     unordered_map<string, int> availability_count_;
+    // type: {building ID: {availability, price}}
     unordered_map<string, unordered_map<string, RoomInfo> > rooms_database_;
 
     void readData(const string& file_path) {
@@ -52,27 +53,45 @@ private:
         file.close();
     }
 
+    void print() const {
+        cout << "----------------------------" << endl;
+        for (const auto& pair : availability_count_) {
+            cout << pair.first << " - " << pair.second << endl; 
+        }
+        cout << endl;
+        cout << "----------------------------" << endl;
+        for (const auto& type_pair : rooms_database_) {
+            const string& type = type_pair.first;
+            const auto& rooms = type_pair.second;
+
+            for (const auto& room_pair : rooms) {
+                string room_id = room_pair.first;
+                const RoomInfo& info = room_pair.second;
+
+                cout << type << "," << room_id << "," 
+                    << info.available << "," << info.price << endl;
+            }
+        }
+        cout << endl;
+    }
+
     string handleAvailabilityRequest(const string& type) {
-        cout << "Server C has received a query of Availability for room type " << type << endl;
+        cout << "Server A has received a query of Availability for room type " << type << endl;
         string response;
         string on_screen_msg;
 
         // If this room type cannot be found
         if (availability_count_.find(type) == availability_count_.end()) {
             response = "Not able to find the room type";
-            on_screen_msg = "Room type " + type + " does not show up in Server C";
-        }
-        else if (availability_count_[type] == 0) {
-            response = "The requested room is not available.";
-            on_screen_msg = "Room type " + type + " does not available in Server C";
+            on_screen_msg = "Room type " + type + " does not show up in Server A";
         }
         else {
-            response = "Campus C found " + to_string(availability_count_[type]) 
+            response = "Campus A found " + to_string(availability_count_[type]) 
                 + " available rooms in " + type + " type dormitory. "
                 + "Their Building IDs are: ";
-            on_screen_msg = "Server C found totally: " + to_string(availability_count_[type]) 
+            on_screen_msg = "Server A found totally: " + to_string(availability_count_[type]) 
                 + " available rooms for " + type + " type dormitory in Building: ";
-            
+
             for (const auto& room_pair : rooms_database_[type]) {
                 response += room_pair.first + ", ";
                 on_screen_msg += room_pair.first + ", ";
@@ -90,13 +109,13 @@ private:
     }
 
     string handlePriceRequest(const string& type) {
-        cout << "Server C has received a query of Price for room type " << type << endl;
+        cout << "Server A has received a query of Price for room type " << type << endl;
         string response;
         string on_screen_msg;
 
         // If this room type cannot be found
         if (availability_count_.find(type) == availability_count_.end()) {
-            on_screen_msg = "Room type " + type + " does not show up in Server C";
+            on_screen_msg = "Room type " + type + " does not show up in Server A";
             response = "Not able to find the room type";
         }
         else {
@@ -118,7 +137,7 @@ private:
                 return a.second < b.second;
             });
 
-            response = "C found room type " + type + " with prices: \n";
+            response = "A found room type " + type + " with prices: \n";
             for (size_t i = 0; i < room_id_with_price_.size(); ++i) {
                 const auto& building = room_id_with_price_[i];
                 response += "Building ID " + building.first + ", Price $" + to_string(building.second) + '\n';
@@ -138,26 +157,26 @@ private:
         string type = query.substr(0, comma_pos);
         string building_id = query.substr(comma_pos + 1);
 
-        cout << "Server C has received a query of Reserve for room type "
+        cout << "Server A has received a query of Reserve for room type "
             << type << " at Building ID " << building_id << endl; 
 
         if (availability_count_.find(type) == availability_count_.end()) {
-            on_screen_msg = "Room type " + type + " does not show up in Server C";
+            on_screen_msg = "Room type " + type + " does not show up in Server A";
             response = "Reservation failed: Not able to find the room type.";
         }
         else if (rooms_database_[type].find(building_id) == rooms_database_[type].end()) {
-            on_screen_msg = "Building ID " + building_id + " does not show up in Server C";
+            on_screen_msg = "Building ID " + building_id + " does not show up in Server A";
             response = "Reservation failed: Building ID " + building_id + " does not exist.";
         }
         else if (rooms_database_[type].find(building_id) != rooms_database_[type].end()
                 && rooms_database_[type][building_id].available == 0) {
-            on_screen_msg = "Server C found room type " + type + " in Building ID " + building_id 
+            on_screen_msg = "Server A found room type " + type + " in Building ID " + building_id 
                 + '.' + '\n' + "This room is not available.";
             response = "Reservation failed: Building ID " + building_id + " room type " + type
                 + " is not available.";
         }
         else {
-            on_screen_msg = "Server C found room type " + type + " in Building ID " + building_id 
+            on_screen_msg = "Server A found room type " + type + " in Building ID " + building_id 
                 + '.' + '\n' + "This room availability is " + to_string(rooms_database_[type][building_id].available)
                 + '.' + '\n';
             // update
@@ -165,7 +184,7 @@ private:
             availability_count_[type] -= 1;
             on_screen_msg += "This room is reserved, and availability is updated to " 
                 + to_string(rooms_database_[type][building_id].available) + '.';
-            response = "Reservation is successful for Campus C Building ID " + building_id + '!';
+            response = "Reservation is successful for Campus A Building ID " + building_id + '!';
         }
         cout << on_screen_msg << endl;
 
@@ -173,24 +192,27 @@ private:
     }
 
 public:
-    CampusServerC(const string& file_path) {
+    CampusServerA(const string& file_path) {
         readData(file_path);
+        // print();
     }
 
     void start() {
         int sockfd;
         char buffer[BUFFER_SIZE];
         sockaddr_in server_address, main_server_address;
-
+        
+        // Create socket by using UDP
         sockfd = socket(AF_INET, SOCK_DGRAM, 0);
         if (sockfd == -1) {
             cerr << "Socket creation failed" << endl;
             exit(1);
         }
 
+        // Configure server address
         memset(&server_address, 0, sizeof(server_address));
         server_address.sin_family = AF_INET;
-        server_address.sin_port = htons(CAMPUS_SERVER_PORT_C);
+        server_address.sin_port = htons(CAMPUS_SERVER_PORT_A);
         inet_pton(AF_INET, "127.0.0.1", &server_address.sin_addr);
 
         if (::bind(sockfd, (const sockaddr*)&server_address, sizeof(server_address)) < 0) {
@@ -204,15 +226,16 @@ public:
         int n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (sockaddr*)&main_server_address, &len);
 
         // Send department list to Main Server
-        string response = "C";
+        string response = "A";
         for (const auto& department : departments_) {
             response += "," + department;
         }
         sendto(sockfd, response.c_str(), response.size(), 0, (const sockaddr*)&main_server_address, len);
-        cout << "Server C has sent a department list to Main Server" << endl << endl;
+        cout << "Server A has sent a department list to Main Server" << endl << endl;
 
         // Stand by for further queries
         while (true) {
+            // Clean buffer and be ready 
             memset(buffer, 0, sizeof(buffer));
             n = recvfrom(sockfd, buffer, BUFFER_SIZE, 0, (sockaddr*)&main_server_address, &len);
             buffer[n] = '\0';
@@ -235,7 +258,8 @@ public:
             sendto(sockfd, response.c_str(), response.size(), 0, (const sockaddr*)&main_server_address, len);
 
             memset(buffer, 0, sizeof(buffer));
-            cout << "Server C has sent the results to Main Server" << endl << endl;
+            cout << "Server A has sent the results to Main Server" << endl;
+            cout << endl;
         }
 
         close(sockfd);
@@ -243,10 +267,10 @@ public:
 };
 
 int main() {
-    string file_path = "../data/dataC.txt";
-    CampusServerC server(file_path);
+    string file_path = "dataA.txt";
+    CampusServerA server(file_path);
 
-    cout << "The Server C is up and running using UDP on port " << CAMPUS_SERVER_PORT_C << endl;
+    cout << "The Server A is up and running using UDP on port " << CAMPUS_SERVER_PORT_A << endl;
     server.start();
 
     return 0;

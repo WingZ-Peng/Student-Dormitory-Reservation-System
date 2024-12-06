@@ -7,11 +7,15 @@ using namespace std;
 
 class CampusServerA {
 private:
+    struct RoomInfo {
+        int available;
+        int price;
+    };
+
     vector<string> departments_;
-    unordered_map<string, int> room_availability_;
     unordered_map<string, int> availability_count_;
-    unordered_map<string, int> building_ids_price_;
-    unordered_map<string, vector<string>> building_ids_;
+    // type: {building ID: {availability, price}}
+    unordered_map<string, unordered_map<string, RoomInfo> > rooms_database_;
 
     void readData(const string& file_path) {
         ifstream file(file_path);
@@ -42,10 +46,9 @@ private:
             int price = stoi(price_str);
             int availability = stoi(availability_str);
 
-            building_ids_price_[building_id] = price;
             availability_count_[type] += availability;
-            building_ids_[type].emplace_back(building_id);
-            room_availability_[building_id] = availability;
+            RoomInfo room_info_ = RoomInfo{availability, price};
+            rooms_database_[type].emplace(building_id, room_info_);
         }
         file.close();
     }
@@ -57,22 +60,17 @@ private:
         }
         cout << endl;
         cout << "----------------------------" << endl;
-        for (const auto& pair : building_ids_) {
-            cout << pair.first << ": ";
-            for (const auto& id : pair.second) {
-                cout << id << ' ';
-            }
-            cout << endl;
-        }
-        cout << "----------------------------" << endl;
-        for (const auto& pair : building_ids_price_) {
-            cout << pair.first << " - " << pair.second << endl; 
-        }
-        cout << endl;
+        for (const auto& type_pair : rooms_database_) {
+            const string& type = type_pair.first;
+            const auto& rooms = type_pair.second;
 
-        cout << "----------------------------" << endl;
-        for (const auto& pair : room_availability_) {
-            cout << pair.first << " - " << pair.second << endl; 
+            for (const auto& room_pair : rooms) {
+                string room_id = room_pair.first;
+                const RoomInfo& info = room_pair.second;
+
+                cout << type << "," << room_id << "," 
+                    << info.available << "," << info.price << endl;
+            }
         }
         cout << endl;
     }
@@ -87,19 +85,16 @@ private:
             response = "Not able to find the room type";
             on_screen_msg = "Room type " + type + " does not show up in Server A";
         }
-        else if (availability_count_[type] == 0) {
-            response = "The requested room is not available.";
-            on_screen_msg = "Room type " + type + " does not available in Server A";
-        }
         else {
             response = "Campus A found " + to_string(availability_count_[type]) 
                 + " available rooms in " + type + " type dormitory. "
                 + "Their Building IDs are: ";
             on_screen_msg = "Server A found totally: " + to_string(availability_count_[type]) 
                 + " available rooms for " + type + " type dormitory in Building: ";
-            for (const auto& id : building_ids_[type]) {
-                response += id + ", ";
-                on_screen_msg += id + ", ";
+
+            for (const auto& room_pair : rooms_database_[type]) {
+                response += room_pair.first + ", ";
+                on_screen_msg += room_pair.first + ", ";
             }
             response.pop_back(); // Remove trailing comma
             response.pop_back(); // Remove trailing space
@@ -119,32 +114,32 @@ private:
         string on_screen_msg;
 
         // If this room type cannot be found
-        if (building_ids_.find(type) == building_ids_.end()) {
+        if (availability_count_.find(type) == availability_count_.end()) {
             on_screen_msg = "Room type " + type + " does not show up in Server A";
             response = "Not able to find the room type";
         }
         else {
             // Get the vector of building IDs for the given type
-            const vector<string>& type_building_ids_ = building_ids_[type];
+            const unordered_map<string, RoomInfo>& type_pair = rooms_database_[type];
             // Create a vector to store pairs of building IDs and prices
-            vector<pair<string, int> > buildings_with_prices_;
+            vector<pair<string, int> > room_id_with_price_;
 
             // Populate the vector with building IDs and corresponding prices
-            for (const auto& building_id : type_building_ids_) {
-                if (building_ids_price_.find(building_id) != building_ids_price_.end()) {
-                    buildings_with_prices_.emplace_back(building_id, building_ids_price_[building_id]);
-                }
+            for (const auto& room_pair : type_pair) {
+                string room_id = room_pair.first;
+                const RoomInfo& room_info = room_pair.second;
+                room_id_with_price_.emplace_back(room_id, room_info.price);
             }
 
             // Sort the vector by price in non-decreasing order
-            sort(buildings_with_prices_.begin(), buildings_with_prices_.end(),
+            sort(room_id_with_price_.begin(), room_id_with_price_.end(),
             [](const pair<string, int>& a, const pair<string, int>& b) {
                 return a.second < b.second;
             });
 
             response = "A found room type " + type + " with prices: \n";
-            for (int i = 0; i < buildings_with_prices_.size(); ++i) {
-                const auto& building = buildings_with_prices_[i];
+            for (size_t i = 0; i < room_id_with_price_.size(); ++i) {
+                const auto& building = room_id_with_price_[i];
                 response += "Building ID " + building.first + ", Price $" + to_string(building.second) + '\n';
             }
             on_screen_msg = "Server " + response;
@@ -165,16 +160,16 @@ private:
         cout << "Server A has received a query of Reserve for room type "
             << type << " at Building ID " << building_id << endl; 
 
-        if (building_ids_.find(type) == building_ids_.end()) {
+        if (availability_count_.find(type) == availability_count_.end()) {
             on_screen_msg = "Room type " + type + " does not show up in Server A";
             response = "Reservation failed: Not able to find the room type.";
         }
-        else if (find(building_ids_[type].begin(), building_ids_[type].end(), building_id) == building_ids_[type].end()) {
+        else if (rooms_database_[type].find(building_id) == rooms_database_[type].end()) {
             on_screen_msg = "Building ID " + building_id + " does not show up in Server A";
             response = "Reservation failed: Building ID " + building_id + " does not exist.";
         }
-        else if (find(building_ids_[type].begin(), building_ids_[type].end(), building_id) != building_ids_[type].end() 
-                && room_availability_[building_id] == 0) {
+        else if (rooms_database_[type].find(building_id) != rooms_database_[type].end()
+                && rooms_database_[type][building_id].available == 0) {
             on_screen_msg = "Server A found room type " + type + " in Building ID " + building_id 
                 + '.' + '\n' + "This room is not available.";
             response = "Reservation failed: Building ID " + building_id + " room type " + type
@@ -182,13 +177,13 @@ private:
         }
         else {
             on_screen_msg = "Server A found room type " + type + " in Building ID " + building_id 
-                + '.' + '\n' + "This room availability is " + to_string(room_availability_[building_id])
+                + '.' + '\n' + "This room availability is " + to_string(rooms_database_[type][building_id].available)
                 + '.' + '\n';
             // update
-            room_availability_[building_id] -= 1;
+            rooms_database_[type][building_id].available -= 1;
             availability_count_[type] -= 1;
             on_screen_msg += "This room is reserved, and availability is updated to " 
-                + to_string(room_availability_[building_id]) + '.';
+                + to_string(rooms_database_[type][building_id].available) + '.';
             response = "Reservation is successful for Campus A Building ID " + building_id + '!';
         }
         cout << on_screen_msg << endl;

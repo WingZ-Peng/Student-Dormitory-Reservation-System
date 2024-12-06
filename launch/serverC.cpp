@@ -243,7 +243,7 @@ public:
 };
 
 int main() {
-    string file_path = "../data/dataC.txt";
+    string file_path = "dataC.txt";
     CampusServerC server(file_path);
 
     cout << "The Server C is up and running using UDP on port " << CAMPUS_SERVER_PORT_C << endl;
